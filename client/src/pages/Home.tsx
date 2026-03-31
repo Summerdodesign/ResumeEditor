@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { defaultResumeData, ResumeData, ProjectItem, WorkItem, EduItem, ActionItem } from "@/lib/resumeData";
 import ResumePreview from "@/components/ResumePreview";
 import { Button } from "@/components/ui/button";
@@ -110,14 +110,40 @@ export default function Home() {
     if (!el) return;
     setExporting(true);
     try {
+      // 临时将照片替换为 base64 以绕过 CORS
+      const imgs = el.querySelectorAll("img") as NodeListOf<HTMLImageElement>;
+      const origSrcs: string[] = [];
+      await Promise.all(
+        Array.from(imgs).map(async (img, i) => {
+          origSrcs[i] = img.src;
+          try {
+            const resp = await fetch(img.src, { mode: "cors" });
+            const blob = await resp.blob();
+            const b64 = await new Promise<string>((res) => {
+              const r = new FileReader();
+              r.onload = () => res(r.result as string);
+              r.readAsDataURL(blob);
+            });
+            img.src = b64;
+          } catch {
+            // 如果 CORS 失败则跳过，继续渲染
+          }
+        })
+      );
+
       const canvas = await html2canvas(el, {
-        scale: 2.5,
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
+        imageTimeout: 0,
       });
-      const imgData = canvas.toDataURL("image/jpeg", 0.97);
+
+      // 还原图片 src
+      Array.from(imgs).forEach((img, i) => { img.src = origSrcs[i]; });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pdfW = pdf.internal.pageSize.getWidth();
       const pdfH = (canvas.height / canvas.width) * pdfW;
@@ -131,7 +157,8 @@ export default function Home() {
       pdf.save("夏天_产品经理_简历.pdf");
       toast.success("PDF 导出成功！");
     } catch (e) {
-      toast.error("导出失败，请重试");
+      console.error(e);
+      toast.error("导出失败：" + String(e));
     } finally {
       setExporting(false);
     }
@@ -394,12 +421,85 @@ export default function Home() {
               width: `${PREVIEW_W * previewScale}px`,
               height: "fit-content",
               boxShadow: "0 4px 32px rgba(0,0,0,0.18)",
+              position: "relative",
             }}
           >
             <ResumePreview data={data} scale={previewScale} />
+            {/* A4 分页线叠加层 */}
+            <PageLines previewW={PREVIEW_W} scale={previewScale} />
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// A4 尺寸：210mm × 297mm，96dpi 下 794px × 1123px
+// 分页线组件：在预览层叠加红色虚线标示每页边界
+function PageLines({ previewW, scale }: { previewW: number; scale: number }) {
+  // A4 高度像素（794px 宽对应 1123px 高）
+  const A4_H_PX = Math.round(previewW * (297 / 210));
+  const scaledA4H = A4_H_PX * scale;
+
+  // 获取预览内容实际高度（渲染后）
+  const [totalH, setTotalH] = React.useState(0);
+  React.useEffect(() => {
+    const el = document.getElementById("resume-preview");
+    if (el) setTotalH(el.offsetHeight * scale);
+  });
+
+  if (totalH === 0) return null;
+
+  const lines: number[] = [];
+  let y = scaledA4H;
+  while (y < totalH) {
+    lines.push(y);
+    y += scaledA4H;
+  }
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 10,
+      }}
+    >
+      {lines.map((lineY, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            top: `${lineY}px`,
+            left: 0,
+            right: 0,
+            height: "2px",
+            background: "rgba(220, 38, 38, 0.7)",
+            borderTop: "2px dashed rgba(220, 38, 38, 0.8)",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              right: "8px",
+              top: "-18px",
+              fontSize: "10px",
+              color: "rgba(220,38,38,0.9)",
+              background: "rgba(255,255,255,0.9)",
+              padding: "1px 5px",
+              borderRadius: "3px",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            第 {i + 1} 页结束
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
