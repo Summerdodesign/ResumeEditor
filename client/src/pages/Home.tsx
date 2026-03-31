@@ -109,6 +109,35 @@ export default function Home() {
     const el = document.getElementById("resume-preview");
     if (!el) return;
     setExporting(true);
+
+    // 注入临时 CSS 覆盖所有 OKLCH 变量为 hex（html2canvas 不支持 oklch）
+    const overrideStyle = document.createElement("style");
+    overrideStyle.id = "__pdf-export-override";
+    overrideStyle.textContent = `
+      :root, .dark {
+        --background: #ffffff !important;
+        --foreground: #1c1c1c !important;
+        --card: #ffffff !important;
+        --card-foreground: #1c1c1c !important;
+        --popover: #ffffff !important;
+        --popover-foreground: #1c1c1c !important;
+        --primary: #1d4ed8 !important;
+        --primary-foreground: #eff6ff !important;
+        --secondary: #f8fafc !important;
+        --secondary-foreground: #475569 !important;
+        --muted: #f1f5f9 !important;
+        --muted-foreground: #64748b !important;
+        --accent: #f1f5f9 !important;
+        --accent-foreground: #0f172a !important;
+        --destructive: #ef4444 !important;
+        --destructive-foreground: #fafafa !important;
+        --border: #e2e8f0 !important;
+        --input: #e2e8f0 !important;
+        --ring: #3b82f6 !important;
+      }
+    `;
+    document.head.appendChild(overrideStyle);
+
     try {
       // 临时将照片替换为 base64 以绕过 CORS
       const imgs = el.querySelectorAll("img") as NodeListOf<HTMLImageElement>;
@@ -142,6 +171,8 @@ export default function Home() {
 
       // 还原图片 src
       Array.from(imgs).forEach((img, i) => { img.src = origSrcs[i]; });
+      // 移除临时 CSS 覆盖
+      document.getElementById("__pdf-export-override")?.remove();
 
       const imgData = canvas.toDataURL("image/jpeg", 0.95);
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -158,6 +189,7 @@ export default function Home() {
       toast.success("PDF 导出成功！");
     } catch (e) {
       console.error(e);
+      document.getElementById("__pdf-export-override")?.remove();
       toast.error("导出失败：" + String(e));
     } finally {
       setExporting(false);
