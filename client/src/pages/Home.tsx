@@ -9,12 +9,10 @@ import { Separator } from "@/components/ui/separator";
 
 import { toast } from "sonner";
 import { Download, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+// PDF 导出改用浏览器原生 print 方式，避免 html2canvas 颜色兴容性问题
 
 export default function Home() {
   const [data, setData] = useState<ResumeData>(defaultResumeData);
-  const [exporting, setExporting] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true, work: true, edu: false, projects: true, advantages: false,
   });
@@ -105,105 +103,59 @@ export default function Home() {
       ),
     }));
 
-  const exportPDF = useCallback(async () => {
-    const el = document.getElementById("resume-preview");
-    if (!el) return;
-    setExporting(true);
-
-    // 注入临时 CSS 覆盖所有 OKLCH 变量为 hex（html2canvas 不支持 oklch）
-    const overrideStyle = document.createElement("style");
-    overrideStyle.id = "__pdf-export-override";
-    overrideStyle.textContent = `
-      :root, .dark {
-        --background: #ffffff !important;
-        --foreground: #1c1c1c !important;
-        --card: #ffffff !important;
-        --card-foreground: #1c1c1c !important;
-        --popover: #ffffff !important;
-        --popover-foreground: #1c1c1c !important;
-        --primary: #1d4ed8 !important;
-        --primary-foreground: #eff6ff !important;
-        --secondary: #f8fafc !important;
-        --secondary-foreground: #475569 !important;
-        --muted: #f1f5f9 !important;
-        --muted-foreground: #64748b !important;
-        --accent: #f1f5f9 !important;
-        --accent-foreground: #0f172a !important;
-        --destructive: #ef4444 !important;
-        --destructive-foreground: #fafafa !important;
-        --border: #e2e8f0 !important;
-        --input: #e2e8f0 !important;
-        --ring: #3b82f6 !important;
+  const exportPDF = useCallback(() => {
+    // 使用浏览器原生 print 导出 PDF，避免 html2canvas 颜色兴容性问题
+    const printStyle = document.createElement("style");
+    printStyle.id = "__resume-print-style";
+    printStyle.textContent = `
+      @media print {
+        @page {
+          size: A4;
+          margin: 0;
+        }
+        body > * { display: none !important; }
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+          background: white !important;
+        }
+        #resume-print-root {
+          display: block !important;
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 210mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          z-index: 99999 !important;
+        }
+        #resume-print-root #resume-preview {
+          transform: none !important;
+          width: 210mm !important;
+          box-shadow: none !important;
+        }
       }
     `;
-    document.head.appendChild(overrideStyle);
+    document.head.appendChild(printStyle);
 
-    try {
-      // 临时重置 transform scale 为 1，避免 html2canvas 截图尺寸失真
-      const origTransform = el.style.transform;
-      const origTransformOrigin = el.style.transformOrigin;
-      el.style.transform = "scale(1)";
-      el.style.transformOrigin = "top left";
+    // 创建专用打印容器
+    const printRoot = document.createElement("div");
+    printRoot.id = "resume-print-root";
+    const el = document.getElementById("resume-preview");
+    if (!el) return;
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.style.transform = "none";
+    clone.style.width = "210mm";
+    printRoot.appendChild(clone);
+    document.body.appendChild(printRoot);
 
-      // 临时将照片替换为 base64 以绕过 CORS
-      const imgs = el.querySelectorAll("img") as NodeListOf<HTMLImageElement>;
-      const origSrcs: string[] = [];
-      await Promise.all(
-        Array.from(imgs).map(async (img, i) => {
-          origSrcs[i] = img.src;
-          try {
-            const resp = await fetch(img.src, { mode: "cors" });
-            const blob = await resp.blob();
-            const b64 = await new Promise<string>((res) => {
-              const r = new FileReader();
-              r.onload = () => res(r.result as string);
-              r.readAsDataURL(blob);
-            });
-            img.src = b64;
-          } catch {
-            // 如果 CORS 失败则跳过，继续渲染
-          }
-        })
-      );
+    window.print();
 
-      const canvas = await html2canvas(el, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        imageTimeout: 0,
-      });
-
-      // 还原图片 src 和 transform
-      Array.from(imgs).forEach((img, i) => { img.src = origSrcs[i]; });
-      el.style.transform = origTransform;
-      el.style.transformOrigin = origTransformOrigin;
-      // 移除临时 CSS 覆盖
-      document.getElementById("__pdf-export-override")?.remove();
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = (canvas.height / canvas.width) * pdfW;
-      let y = 0;
-      const pageH = pdf.internal.pageSize.getHeight();
-      while (y < pdfH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, -y, pdfW, pdfH);
-        y += pageH;
-      }
-      pdf.save("夏天_产品经理_简历.pdf");
-      toast.success("PDF 导出成功！");
-    } catch (e) {
-      console.error(e);
-      document.getElementById("__pdf-export-override")?.remove();
-      // 尝试恢夏 transform
-      try { el.style.transform = ""; } catch {}
-      toast.error("导出失败：" + String(e));
-    } finally {
-      setExporting(false);
-    }
+    // 打印完成后清理
+    setTimeout(() => {
+      document.getElementById("__resume-print-style")?.remove();
+      document.getElementById("resume-print-root")?.remove();
+    }, 1000);
   }, []);
 
   // Preview scale to fit right panel
@@ -223,12 +175,11 @@ export default function Home() {
           </div>
           <Button
             onClick={exportPDF}
-            disabled={exporting}
             size="sm"
             className="bg-white text-[#1a5fa8] hover:bg-blue-50 font-semibold text-xs px-3 h-8"
           >
             <Download className="w-3.5 h-3.5 mr-1.5" />
-            {exporting ? "导出中..." : "导出 PDF"}
+            导出 PDF
           </Button>
         </div>
 
