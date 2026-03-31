@@ -108,7 +108,7 @@ export default function ResumePreview({ data, scale = 1 }: Props) {
             ))}
           </div>
           <div style={{ flex: 1 }}>
-            <SectionTitle>资格证书</SectionTitle>
+            <SectionTitle>个人优势</SectionTitle>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "5px" }}>
               {certs.map((c, i) => (
                 <span key={i} style={{ background: "#e8f2fb", border: "1px solid #c8ddf0", borderRadius: "3px", padding: "3px 10px", fontSize: "8.7pt", color: "#1a5fa8" }}>

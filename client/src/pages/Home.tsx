@@ -450,7 +450,7 @@ export default function Home() {
                 </div>
               ))}
               <div className="mt-2">
-                <Label className="text-xs text-slate-500 mb-1 block">资格证书（逗号分隔）</Label>
+                <Label className="text-xs text-slate-500 mb-1 block">个人优势（逗号分隔）</Label>
                 <Input
                   value={data.certs.join("、")}
                   onChange={(e) => setData((d) => ({ ...d, certs: e.target.value.split(/[,，、]/).map((s) => s.trim()).filter(Boolean) }))}
