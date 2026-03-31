@@ -139,6 +139,12 @@ export default function Home() {
     document.head.appendChild(overrideStyle);
 
     try {
+      // 临时重置 transform scale 为 1，避免 html2canvas 截图尺寸失真
+      const origTransform = el.style.transform;
+      const origTransformOrigin = el.style.transformOrigin;
+      el.style.transform = "scale(1)";
+      el.style.transformOrigin = "top left";
+
       // 临时将照片替换为 base64 以绕过 CORS
       const imgs = el.querySelectorAll("img") as NodeListOf<HTMLImageElement>;
       const origSrcs: string[] = [];
@@ -169,8 +175,10 @@ export default function Home() {
         imageTimeout: 0,
       });
 
-      // 还原图片 src
+      // 还原图片 src 和 transform
       Array.from(imgs).forEach((img, i) => { img.src = origSrcs[i]; });
+      el.style.transform = origTransform;
+      el.style.transformOrigin = origTransformOrigin;
       // 移除临时 CSS 覆盖
       document.getElementById("__pdf-export-override")?.remove();
 
@@ -190,6 +198,8 @@ export default function Home() {
     } catch (e) {
       console.error(e);
       document.getElementById("__pdf-export-override")?.remove();
+      // 尝试恢夏 transform
+      try { el.style.transform = ""; } catch {}
       toast.error("导出失败：" + String(e));
     } finally {
       setExporting(false);
