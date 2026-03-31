@@ -134,6 +134,12 @@ export default function Home() {
           width: 210mm !important;
           box-shadow: none !important;
         }
+        /* 强制打印背景色和背景图片 */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
       }
     `;
     document.head.appendChild(printStyle);
