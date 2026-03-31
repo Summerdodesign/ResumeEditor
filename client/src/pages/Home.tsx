@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { toast } from "sonner";
 import { Download, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
@@ -145,7 +145,7 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
       {/* ── LEFT: Editor ── */}
-      <div className="w-[420px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 shadow-sm">
+      <div className="w-[420px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 shadow-sm" style={{ height: '100vh' }}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-[#0d2137] to-[#1a5fa8] flex items-center justify-between">
           <div>
@@ -163,7 +163,7 @@ export default function Home() {
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
           <div className="px-5 py-4 space-y-4">
             {/* 基本信息 */}
             <EditorSection title="基本信息" open={openSections.basic} onToggle={() => toggle("basic")}>
@@ -378,7 +378,7 @@ export default function Home() {
               </button>
             </EditorSection>
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* ── RIGHT: Preview ── */}
