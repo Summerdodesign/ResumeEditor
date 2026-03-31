@@ -8,7 +8,31 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 import { toast } from "sonner";
-import { Download, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, Plus, Trash2, ChevronDown, ChevronRight, Save, FolderOpen, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+// ── 多版本简历持久化 ──
+const STORAGE_KEY = "resume_versions_v1";
+
+interface ResumeVersion {
+  id: string;
+  name: string;
+  data: ResumeData;
+  updatedAt: number;
+}
+
+function loadVersions(): ResumeVersion[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveVersions(versions: ResumeVersion[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(versions));
+}
 // PDF 导出改用浏览器原生 print 方式，避免 html2canvas 颜色兴容性问题
 
 export default function Home() {
@@ -17,6 +41,79 @@ export default function Home() {
     basic: true, work: true, edu: false, projects: true, advantages: false,
   });
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // ── 版本管理状态 ──
+  const [versions, setVersions] = useState<ResumeVersion[]>(loadVersions);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  const [showVersionPanel, setShowVersionPanel] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+
+  // 保存当前内容为新版本或覆盖已有版本
+  const handleSave = useCallback(() => {
+    const name = saveName.trim() || `简历 ${new Date().toLocaleDateString("zh-CN")}`;
+    const now = Date.now();
+    let newVersions: ResumeVersion[];
+    if (activeVersionId) {
+      // 覆盖当前版本
+      newVersions = versions.map((v) =>
+        v.id === activeVersionId ? { ...v, name, data, updatedAt: now } : v
+      );
+    } else {
+      // 新建版本
+      const id = `v_${now}`;
+      const newV: ResumeVersion = { id, name, data, updatedAt: now };
+      newVersions = [newV, ...versions];
+      setActiveVersionId(id);
+    }
+    setVersions(newVersions);
+    saveVersions(newVersions);
+    setSaveDialogOpen(false);
+    setSaveName("");
+    toast.success(`已保存「${name}」`);
+  }, [saveName, activeVersionId, versions, data]);
+
+  // 另存为新版本
+  const handleSaveAs = useCallback(() => {
+    const name = saveName.trim() || `简历 ${new Date().toLocaleDateString("zh-CN")}`;
+    const id = `v_${Date.now()}`;
+    const newV: ResumeVersion = { id, name, data, updatedAt: Date.now() };
+    const newVersions = [newV, ...versions];
+    setVersions(newVersions);
+    saveVersions(newVersions);
+    setActiveVersionId(id);
+    setSaveDialogOpen(false);
+    setSaveName("");
+    toast.success(`已另存为「${name}」`);
+  }, [saveName, versions, data]);
+
+  // 切换版本
+  const switchVersion = useCallback((v: ResumeVersion) => {
+    setData(v.data);
+    setActiveVersionId(v.id);
+    setSaveName(v.name);
+    setShowVersionPanel(false);
+    toast.success(`已切换到「${v.name}」`);
+  }, []);
+
+  // 删除版本
+  const deleteVersion = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newVersions = versions.filter((v) => v.id !== id);
+    setVersions(newVersions);
+    saveVersions(newVersions);
+    if (activeVersionId === id) setActiveVersionId(null);
+    toast.success("已删除");
+  }, [versions, activeVersionId]);
+
+  // 新建空白简历
+  const handleNew = useCallback(() => {
+    setData(defaultResumeData);
+    setActiveVersionId(null);
+    setSaveName("");
+    setShowVersionPanel(false);
+    toast.success("已新建空白简历");
+  }, []);
 
   const toggle = (key: string) =>
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
@@ -174,20 +271,88 @@ export default function Home() {
       {/* ── LEFT: Editor ── */}
       <div className="w-[420px] flex-shrink-0 flex flex-col bg-white border-r border-slate-200 shadow-sm" style={{ height: '100vh' }}>
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-[#0d2137] to-[#1a5fa8] flex items-center justify-between">
-          <div>
-            <h1 className="text-white font-bold text-base tracking-wide">简历编辑器</h1>
-            <p className="text-blue-200 text-xs mt-0.5">实时编辑 · 右侧预览</p>
+        <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-[#0d2137] to-[#1a5fa8]">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-white font-bold text-base tracking-wide">简历编辑器</h1>
+              {activeVersionId && (
+                <p className="text-blue-200 text-xs mt-0.5 truncate max-w-[180px]">
+                  {versions.find((v) => v.id === activeVersionId)?.name ?? ""}
+                </p>
+              )}
+              {!activeVersionId && <p className="text-blue-200 text-xs mt-0.5">未保存</p>}
+            </div>
+            <Button
+              onClick={exportPDF}
+              size="sm"
+              className="bg-white text-[#1a5fa8] hover:bg-blue-50 font-semibold text-xs px-3 h-8"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              导出 PDF
+            </Button>
           </div>
-          <Button
-            onClick={exportPDF}
-            size="sm"
-            className="bg-white text-[#1a5fa8] hover:bg-blue-50 font-semibold text-xs px-3 h-8"
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            导出 PDF
-          </Button>
+          {/* 版本管理工具栏 */}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => { setSaveName(versions.find(v => v.id === activeVersionId)?.name ?? ""); setSaveDialogOpen(true); }}
+              className="flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white border-0"
+            >
+              <Save className="w-3 h-3 mr-1" />
+              {activeVersionId ? "保存" : "保存简历"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowVersionPanel((v) => !v)}
+              className="flex-1 h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-0"
+            >
+              <FolderOpen className="w-3 h-3 mr-1" />
+              我的简历 {versions.length > 0 && `(${versions.length})`}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleNew}
+              className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-0 px-2"
+              title="新建空白简历"
+            >
+              <Plus className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
+
+        {/* 版本列表面板 */}
+        {showVersionPanel && (
+          <div className="border-b border-slate-200 bg-slate-50 max-h-52 overflow-y-auto">
+            {versions.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-4">暂无保存的简历</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {versions.map((v) => (
+                  <li
+                    key={v.id}
+                    onClick={() => switchVersion(v)}
+                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-blue-50 transition-colors ${
+                      v.id === activeVersionId ? "bg-blue-50 border-l-2 border-blue-500" : ""
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-700 truncate">{v.name}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {new Date(v.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => deleteVersion(v.id, e)}
+                      className="ml-2 p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-400 transition-colors flex-shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto" style={{ minHeight: 0 }}>
           <div className="px-5 py-4 space-y-4">
@@ -429,6 +594,36 @@ export default function Home() {
           </div>
         </div>
       </div>
+      {/* 保存对话框 */}
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">保存简历</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Label className="text-sm text-slate-600 mb-1.5 block">简历名称</Label>
+            <Input
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              placeholder={`简历 ${new Date().toLocaleDateString("zh-CN")}`}
+              className="h-9"
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            {activeVersionId && (
+              <Button variant="outline" size="sm" onClick={handleSaveAs} className="text-xs">
+                另存为新版本
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} className="bg-[#1a5fa8] hover:bg-[#1550a0] text-white text-xs">
+              <Save className="w-3.5 h-3.5 mr-1" />
+              {activeVersionId ? "覆盖保存" : "保存"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
