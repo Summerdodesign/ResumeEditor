@@ -130,9 +130,6 @@ export default function ResumePreview({ data, scale = 1 }: Props) {
                   <li style={{ marginBottom: "2.5px", textAlign: "justify" }}>
                     <strong style={{ color: "#0d2137" }}>背景：</strong>{p.background}
                   </li>
-                  <li style={{ marginBottom: "2.5px", textAlign: "justify" }}>
-                    <strong style={{ color: "#0d2137" }}>任务：</strong>{p.task}
-                  </li>
                   <li style={{ marginBottom: "2.5px" }}>
                     <strong style={{ color: "#0d2137" }}>方案：</strong>
                     <ul style={{ paddingLeft: "14px", margin: "1px 0 2px 0" }}>
