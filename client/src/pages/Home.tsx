@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { defaultResumeData, ResumeData, ProjectItem, WorkItem, EduItem, ActionItem } from "@/lib/resumeData";
 import ResumePreview from "@/components/ResumePreview";
 import { Button } from "@/components/ui/button";
