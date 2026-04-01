@@ -36,6 +36,10 @@ function saveVersions(versions: ResumeVersion[]) {
 // PDF 导出改用浏览器原生 print 方式，避免 html2canvas 颜色兴容性问题
 
 export default function Home() {
+  // The userAuth hooks provides authentication state
+  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
+  let { user, loading, error, isAuthenticated, logout } = useAuth();
+
   const [data, setData] = useState<ResumeData>(defaultResumeData);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true, work: true, edu: false, projects: true, advantages: false,
